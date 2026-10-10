@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DollarClick — click for a dollar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    --bg: #080b12;
+    --panel: rgba(255,255,255,.045);
+    --panel-2: rgba(255,255,255,.035);
+    --border: rgba(255,255,255,.09);
+    --text: #e8ecf3;
+    --muted: #8b94a7;
+    --green: #22c55e;
+    --green-lt: #4ade80;
+    --red: #f87171;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    color: var(--text);
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(900px 620px at 12% -10%, rgba(34,197,94,.20), transparent 62%),
+      radial-gradient(800px 600px at 105% 5%, rgba(56,189,248,.13), transparent 58%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #app {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px 18px 40px;
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  #app.ready { opacity: 1; }
+
+  .view { display: none; width: 100%; }
+  .view.active { display: block; }
+
+  /* ---------- shared ---------- */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+
+  /* ---------- auth ---------- */
+  #auth-view .card { max-width: 400px; margin: 0 auto; padding: 30px 28px 26px; }
+
+  .brand { text-align: center; }
+  .logo {
+    width: 52px; height: 52px; margin: 0 auto 14px;
+    border-radius: 16px;
+    display: grid; place-items: center;
+    font-size: 26px; font-weight: 800; color: #04140a;
+    background: linear-gradient(180deg, #86efac, #22c55e 60%, #15803d);
+    box-shadow: 0 10px 30px rgba(34,197,94,.35);
+  }
+  .brand h1 { margin: 0; font-size: 23px; letter-spacing: -.02em; font-weight: 800; }
+  .brand p { margin: 7px 0 0; font-size: 13.5px; color: var(--muted); }
+
+  .tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 4px; margin: 22px 0 18px;
+  }
+  .tab {
+    appearance: none; border: 0; background: transparent; color: var(--muted);
+    font: inherit; font-weight: 600; font-size: 14px;
+    padding: 9px; border-radius: 9px; cursor: pointer;
+    transition: background .18s, color .18s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: rgba(255,255,255,.09); color: var(--text); }
+
+  .field { display: block; margin-bottom: 14px; }
+  .field span {
+    display: block; font-size: 12.5px; font-weight: 600; color: var(--muted);
+    margin-bottom: 7px; letter-spacing: .02em;
+  }
+  input {
+    width: 100%; padding: 12px 14px; border-radius: 11px;
+    font: inherit; font-size: 15px; color: var(--text);
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    outline: none; transition: border-color .18s, background .18s, box-shadow .18s;
+  }
+  input::placeholder { color: #5b6478; }
+  input:focus {
+    border-color: rgba(34,197,94,.55);
+    background: rgba(34,197,94,.06);
+    box-shadow: 0 0 0 4px rgba(34,197,94,.10);
+  }
+
+  .btn-primary {
+    width: 100%; padding: 13px; margin-top: 4px;
+    border: 0; border-radius: 11px;
+    font: inherit; font-weight: 700; font-size: 15px; color: #04140a;
+    cursor: pointer;
+    background: linear-gradient(180deg, #4ade80, #22c55e);
+    box-shadow: 0 8px 24px rgba(34,197,94,.28);
+    transition: transform .12s, filter .18s, opacity .18s;
+  }
+  .btn-primary:hover { filter: brightness(1.07); }
+  .btn-primary:active { transform: translateY(1px) scale(.995); }
+  .btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+  .message {
+    min-height: 18px; margin: 14px 0 0;
+    font-size: 13px; text-align: center; color: var(--muted);
+    line-height: 1.45;
+  }
+  .message.error { color: var(--red); }
+  .message.success { color: var(--green-lt); }
+
+  /* ---------- app ---------- */
+  #app-view .wrap { max-width: 520px; margin: 0 auto; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 18px;
+  }
+  .user-chip { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .avatar {
+    width: 30px; height: 30px; flex: none; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 13px; font-weight: 800; color: #04140a;
+    background: linear-gradient(180deg, #4ade80, #16a34a);
+  }
+  .user-chip span {
+    font-size: 13px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .btn-ghost {
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border);
+    color: var(--muted); border-radius: 9px;
+    padding: 8px 13px; font: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background .18s, color .18s;
+    flex: none;
+  }
+  .btn-ghost:hover { color: var(--text); background: rgba(255,255,255,.09); }
+
+  .balance-card {
+    position: relative; overflow: hidden;
+    text-align: center; padding: 28px 20px 22px;
+    border-radius: 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+  }
+  .balance-card::after {
+    content: ''; position: absolute; inset: -60% 20% auto;
+    height: 200px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(34,197,94,.22), transparent 70%);
+    pointer-events: none;
+  }
+  .balance-label {
+    position: relative;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  #balance {
+    position: relative; display: block;
+    font-size: 56px; font-weight: 800; letter-spacing: -.035em;
+    margin: 8px 0 2px; line-height: 1;
+    background: linear-gradient(180deg, #ffffff, #86efac);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  #clicks { position: relative; font-size: 13px; color: var(--muted); }
+
+  .click-wrap { display: grid; place-items: center; margin: 30px 0 6px; }
+
+  #click-btn {
+    position: relative;
+    width: 200px; height: 200px; border-radius: 50%;
+    border: 0; cursor: pointer;
+    font: inherit; font-weight: 800; font-size: 38px;
+    letter-spacing: -.03em; color: #04140a;
+    background: radial-gradient(circle at 50% 24%, #86efac, #22c55e 55%, #15803d);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,.18),
+      0 18px 50px rgba(34,197,94,.32),
+      0 0 100px rgba(34,197,94,.16);
+    transition: transform .1s ease, box-shadow .2s ease, filter .2s ease;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  #click-btn small {
+    display: block; margin-top: 2px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: .18em; text-transform: uppercase; opacity: .6;
+  }
+  #click-btn:hover { transform: scale(1.03); }
+  #click-btn:active { transform: scale(.94); }
+  #click-btn:disabled { cursor: wait; filter: saturate(.65) brightness(.92); }
+  #click-btn:focus-visible { outline: 3px solid rgba(134,239,172,.6); outline-offset: 5px; }
+
+  .floater {
+    position: absolute; pointer-events: none;
+    transform: translate(-50%, -50%);
+    font-size: 20px; font-weight: 800; color: #d9fbe5;
+    text-shadow: 0 2px 12px rgba(0,0,0,.55);
+    animation: floatUp .9s cubic-bezier(.2,.7,.3,1) forwards;
+  }
+  @keyframes floatUp {
+    from { opacity: 1; transform: translate(-50%, -50%) scale(.75); }
+    to   { opacity: 0; transform: translate(-50%, -210%) scale(1.3); }
+  }
+
+  .activity { margin-top: 30px; }
+  .activity h2 {
+    margin: 0 0 12px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  #activity-list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 280px; overflow-y: auto;
+  }
+  #activity-list li {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 14px; border-radius: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    font-size: 14px;
+  }
+  #activity-list li.new { animation: pop .35s ease; }
+  @keyframes pop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+  .badge {
+    width: 24px; height: 24px; flex: none; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 15px; font-weight: 800; color: #04140a;
+    background: linear-gradient(180deg, #86efac, #22c55e);
+  }
+  #activity-list .txt { flex: 1; color: var(--text); }
+  #activity-list .amt { font-weight: 700; color: var(--green-lt); font-variant-numeric: tabular-nums; }
+  #activity-list .time { font-size: 12px; color: var(--muted); flex: none; }
+  #activity-list .empty { justify-content: center; color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: 26px;
+    transform: translate(-50%, 20px);
+    padding: 11px 18px; border-radius: 11px;
+    background: rgba(30,20,20,.92);
+    border: 1px solid rgba(248,113,113,.35);
+    color: #fecaca; font-size: 13.5px; font-weight: 500;
+    opacity: 0; pointer-events: none;
+    transition: opacity .22s, transform .22s;
+    z-index: 50; max-width: calc(100vw - 36px);
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 420px) {
+    #balance { font-size: 46px; }
+    #click-btn { width: 172px; height: 172px; font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ AUTH ============ -->
+  <section id="auth-view" class="view active">
+    <div class="card">
+      <div class="brand">
+        <div class="logo">$</div>
+        <h1>DollarClick</h1>
+        <p>Click the button. Get a dollar. That's it.</p>
+      </div>
+
+      <div class="tabs">
+        <button type="button" class="tab active" data-mode="signin">Sign in</button>
+        <button type="button" class="tab" data-mode="signup">Sign up</button>
+      </div>
+
+      <form id="auth-form" novalidate>
+        <label class="field">
+          <span>Email</span>
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="password" type="password" placeholder="At least 6 characters" autocomplete="current-password" minlength="6" required />
+        </label>
+        <button class="btn-primary" id="auth-submit" type="submit">Sign in</button>
+      </form>
+
+      <p class="message" id="auth-message"></p>
+    </div>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <section id="app-view" class="view">
+    <div class="wrap">
+      <div class="topbar">
+        <div class="user-chip">
+          <div class="avatar" id="avatar">?</div>
+          <span id="user-email"></span>
+        </div>
+        <button class="btn-ghost" id="sign-out" type="button">Sign out</button>
+      </div>
+
+      <div class="balance-card">
+        <div class="balance-label">Your balance</div>
+        <span id="balance">$0.00</span>
+        <div id="clicks">0 clicks</div>
+      </div>
+
+      <div class="click-wrap">
+        <button id="click-btn" type="button">
+          $1
+          <small>Tap me</small>
+        </button>
+      </div>
+
+      <div class="activity">
+        <h2>Recent activity</h2>
+        <ul id="activity-list"></ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* =========================================================
+   1. CONFIG — replace these two values
+   ========================================================= */
+const SUPABASE_URL      = 'https://inpwowkolkaynfbfxutw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlucHdvd2tvbGtheW5mYmZ4dXR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2NjQ0MzUsImV4cCI6MjEwNzI0MDQzNX0.hSiW_5PLdHQCs70XCmUNcmqehafdutjYrHxzrXY1YCQ';
+
+/* =========================================================
+   2. Setup
+   ========================================================= */
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $  = (id) => document.getElementById(id);
+
+const appRoot  = $('app');
+const authView = $('auth-view');
+const appView  = $('app-view');
+
+const els = {
+  tabs:      document.querySelectorAll('.tab'),
+  form:      $('auth-form'),
+  email:     $('email'),
+  password:  $('password'),
+  submit:    $('auth-submit'),
+  message:   $('auth-message'),
+  avatar:    $('avatar'),
+  userEmail: $('user-email'),
+  balance:   $('balance'),
+  clicks:    $('clicks'),
+  clickBtn:  $('click-btn'),
+  signOut:   $('sign-out'),
+  activity:  $('activity-list'),
+  toast:     $('toast'),
+};
+
+let mode    = 'signin';
+let user    = null;
+let profile = { balance: 0, clicks: 0 };
+let claiming = false;
+
+/* =========================================================
+   3. Helpers
+   ========================================================= */
+const money = (n) => '$' + Number(n || 0).toFixed(2);
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function timeAgo(iso) {
+  const then = new Date(iso).getTime();
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 45)   return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  if (s < 604800) return Math.floor(s / 86400) + 'd ago';
+  return new Date(iso).toLocaleDateString();
+}
+
+let toastTimer;
+function toast(msg) {
+  els.toast.textContent = msg;
+  els.toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => els.toast.classList.remove('show'), 3200);
+}
+
+function setMessage(text, kind) {
+  els.message.textContent = text || '';
+  els.message.className = 'message' + (kind ? ' ' + kind : '');
+}
+
+/* =========================================================
+   4. View switching
+   ========================================================= */
+function showAuth() {
+  appView.classList.remove('active');
+  authView.classList.add('active');
+  els.password.value = '';
+  setMessage('');
+}
+
+function showApp() {
+  authView.classList.remove('active');
+  appView.classList.add('active');
+  els.userEmail.textContent = user.email || '';
+  els.avatar.textContent = (user.email || '?').charAt(0).toUpperCase();
+}
+
+/* =========================================================
+   5. Auth form
+   ========================================================= */
+els.tabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    mode = tab.dataset.mode;
+    els.tabs.forEach((t) => t.classList.toggle('active', t === tab));
+    els.submit.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+    els.password.autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
+    setMessage('');
+  });
+});
+
+els.form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const email    = els.email.value.trim();
+  const password = els.password.value;
+
+  if (!email) { setMessage('Please enter your email address.', 'error'); return; }
+  if (password.length < 6) { setMessage('Password must be at least 6 characters.', 'error'); return; }
+
+  els.submit.disabled = true;
+  els.submit.textContent = mode === 'signin' ? 'Signing in…' : 'Creating account…';
+  setMessage('');
+
+  try {
+    if (mode === 'signup') {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+
+      if (!data.session) {
+        setMessage('Account created. Check your inbox to confirm your email, then sign in.', 'success');
+        els.tabs[0].click(); // flip back to "Sign in"
+      }
+      // If a session came back, onAuthStateChange handles the rest.
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    }
+  } catch (err) {
+    setMessage(err.message || 'Something went wrong. Try again.', 'error');
+  } finally {
+    els.submit.disabled = false;
+    els.submit.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+  }
+});
+
+els.signOut.addEventListener('click', async () => {
+  await sb.auth.signOut();
+});
+
+/* =========================================================
+   6. Session handling
+   ========================================================= */
+async function enterApp(session) {
+  if (!session || !session.user) { showAuth(); return; }
+
+  const isNewUser = !user || user.id !== session.user.id;
+  user = session.user;
+  showApp();
+
+  if (isNewUser) {
+    profile = { balance: 0, clicks: 0 };
+    renderBalance();
+    els.activity.innerHTML = '';
+    await Promise.all([loadProfile(), loadActivity()]);
+  }
+}
+
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    user = null;
+    profile = { balance: 0, clicks: 0 };
+    showAuth();
+    return;
+  }
+  // Defer async work out of the callback to avoid auth-lock deadlocks.
+  if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+    setTimeout(() => { enterApp(session); }, 0);
+  }
+});
+
+/* =========================================================
+   7. Profile + balance
+   ========================================================= */
+async function loadProfile() {
+  const { data, error } = await sb
+    .from('profiles')
+    .select('balance, clicks')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error) { console.error('[profile]', error); toast('Could not load your balance.'); return; }
+
+  if (!data) {
+    // Safety net if the DB trigger isn't installed.
+    const { data: created, error: insErr } = await sb
+      .from('profiles')
+      .insert({ id: user.id, email: user.email })
+      .select('balance, clicks')
+      .single();
+
+    if (insErr) { console.error('[profile insert]', insErr); toast('Could not create your profile.'); return; }
+    profile = created;
+  } else {
+    profile = data;
+  }
+
+  renderBalance();
+}
+
+function renderBalance() {
+  els.balance.textContent = money(profile.balance);
+  const c = Number(profile.clicks) || 0;
+  els.clicks.textContent = c + (c === 1 ? ' click' : ' clicks');
+}
+
+/* =========================================================
+   8. The money button
+   ========================================================= */
+els.clickBtn.addEventListener('click', claimDollar);
+
+async function claimDollar(evt) {
+  if (claiming || !user) return;
+
+  claiming = true;
+  els.clickBtn.disabled = true;
+
+  try {
+    const { data, error } = await sb.rpc('claim_dollar');
+    if (error) throw error;
+
+    profile.balance = Number(data.balance);
+    profile.clicks  = Number(data.clicks);
+
+    renderBalance();
+    spawnFloater(evt);
+    prependActivity();
+  } catch (err) {
+    console.error('[claim]', err);
+    toast(err.message || 'Could not claim your dollar.');
+  } finally {
+    claiming = false;
+    els.clickBtn.disabled = false;
+  }
+}
+
+function spawnFloater(evt) {
+  const rect = els.clickBtn.getBoundingClientRect();
+  const hasPoint = evt && (evt.clientX || evt.clientY);
+  const x = hasPoint ? evt.clientX - rect.left : rect.width / 2;
+  const y = hasPoint ? evt.clientY - rect.top  : rect.height / 2;
+
+  const el = document.createElement('span');
+  el.className = 'floater';
+  el.textContent = '+$1';
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+
+  els.clickBtn.appendChild(el);
+  setTimeout(() => el.remove(), 900);
+}
+
+/* =========================================================
+   9. Activity feed
+   ========================================================= */
+async function loadActivity() {
+  const { data, error } = await sb
+    .from('transactions')
+    .select('amount, label, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(25);
+
+  if (error) { console.error('[activity]', error); return; }
+  renderActivity(data || []);
+}
+
+function renderActivity(items) {
+  if (!items.length) {
+    els.activity.innerHTML = '<li class="empty">No activity yet — tap the button!</li>';
+    return;
+  }
+
+  els.activity.innerHTML = items.map((t) => `
+    <li>
+      <span class="badge">+</span>
+      <span class="txt">${escapeHtml(t.label)}</span>
+      <span class="amt">+${money(t.amount)}</span>
+      <span class="time">${timeAgo(t.created_at)}</span>
+    </li>
+  `).join('');
+}
+
+function prependActivity() {
+  const empty = els.activity.querySelector('.empty');
+  if (empty) empty.remove();
+
+  const li = document.createElement('li');
+  li.className = 'new';
+  li.innerHTML = `
+    <span class="badge">+</span>
+    <span class="txt">Click reward</span>
+    <span class="amt">+$1.00</span>
+    <span class="time">just now</span>
+  `;
+  els.activity.prepend(li);
+
+  while (els.activity.children.length > 25) {
+    els.activity.lastElementChild.remove();
+  }
+}
+
+/* =========================================================
+   10. Boot
+   ========================================================= */
+(async function bootstrap() {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) await enterApp(session);
+    else showAuth();
+  } catch (err) {
+    console.error('[boot]', err);
+    showAuth();
+  } finally {
+    appRoot.classList.add('ready');
+  }
+})();
+</script>
+</body>
+</html>
