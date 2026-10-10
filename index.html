@@ -347,7 +347,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =========================================================
-   1. CONFIG — replace these two values
+   1. CONFIG
    ========================================================= */
 const SUPABASE_URL      = 'https://inpwowkolkaynfbfxutw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlucHdvd2tvbGtheW5mYmZ4dXR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2NjQ0MzUsImV4cCI6MjEwNzI0MDQzNX0.hSiW_5PLdHQCs70XCmUNcmqehafdutjYrHxzrXY1YCQ';
@@ -568,8 +568,12 @@ async function claimDollar(evt) {
     const { data, error } = await sb.rpc('claim_dollar');
     if (error) throw error;
 
-    profile.balance = Number(data.balance);
-    profile.clicks  = Number(data.clicks);
+    // PostgREST returns table-returning functions as an ARRAY.
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('No data returned from claim_dollar');
+
+    profile.balance = Number(row.balance);
+    profile.clicks  = Number(row.clicks);
 
     renderBalance();
     spawnFloater(evt);
